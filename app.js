@@ -179,13 +179,18 @@ function renderPaymentBalances(data) {
     const ingresos = sum(group.rows.filter(t => t.tipo === 'Ingresos'));
     const gastos = sum(group.rows.filter(t => t.tipo === 'Egresos'));
     const ahorros = sum(group.rows.filter(t => t.tipo === 'Ahorros'));
-    return `<section class="user-balance-group">
-      <h4>${group.label}</h4>
-      ${balances}
+    const avatar = group.label === 'Mami' ? '👩‍🦰' : '👩🏻';
+    return `<section class="user-balance-group user-card-${group.label.toLowerCase()}">
+      <div class="user-card-heading">
+        <div class="user-avatar">${avatar}</div>
+        <div><small>Saldo principal</small><h4>${group.label}</h4></div>
+        <div class="user-free-total"><small>Dinero libre</small><b>${money(ingresos - gastos - ahorros)}</b></div>
+      </div>
+      <div class="payment-card-list">${balances}</div>
       <div class="user-mini-summary">
         <span>Ingresos <b>${money(ingresos)}</b></span>
         <span>Gastos <b>${money(gastos)}</b></span>
-        <span>Dinero libre <b>${money(ingresos - gastos - ahorros)}</b></span>
+        <span>Ahorros <b>${money(ahorros)}</b></span>
       </div>
     </section>`;
   }).join('');
