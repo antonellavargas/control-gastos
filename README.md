@@ -24,7 +24,7 @@ Web app para GitHub Pages con almacenamiento compartido en Google Sheets, copia 
 Abre `app.js` y reemplaza:
 
 ```js
-const CLOUD_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwG6XTEAQJiE2C4skqeeG7-h-oVK0c2un9Ptisob_CftJHoYJB4TH14Ow4DyVWbGKYmcw/exec';
+const CLOUD_SCRIPT_URL = 'PEGA_AQUI_TU_URL_DE_APPS_SCRIPT';
 ```
 
 por tu URL `/exec`. No elimines las comillas.

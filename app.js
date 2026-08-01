@@ -7,16 +7,64 @@ const CONFIG = {
 
 const STORAGE_KEY = 'controlGastosMovimientosV1';
 const SCRIPT_URL_KEY = 'controlGastosAppsScriptUrl';
+// Pega aquí la URL /exec de tu Apps Script antes de publicar en GitHub.
+// Así Mami y Nella usarán automáticamente la misma base de datos.
+const CLOUD_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwG6XTEAQJiE2C4skqeeG7-h-oVK0c2un9Ptisob_CftJHoYJB4TH14Ow4DyVWbGKYmcw/exec';
 let transactions = loadTransactions();
 
 const $ = (id) => document.getElementById(id);
 const money = (value) => `S/ ${Number(value || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const today = new Date().toISOString().slice(0, 10);
 
+function normalizeDateValue(value) {
+  if (!value) return '';
+  const raw = String(value).trim();
+
+  // Formato recomendado: yyyy-mm-dd
+  const iso = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (iso) return `${iso[1]}-${String(iso[2]).padStart(2, '0')}-${String(iso[3]).padStart(2, '0')}`;
+
+  // Formatos habituales de Google Sheets en Perú: dd/mm/yyyy o dd-mm-yyyy
+  const local = raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+  if (local) return `${local[3]}-${String(local[2]).padStart(2, '0')}-${String(local[1]).padStart(2, '0')}`;
+
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) {
+    const y = parsed.getFullYear();
+    const m = String(parsed.getMonth() + 1).padStart(2, '0');
+    const d = String(parsed.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  return raw;
+}
+
+function pick(obj, keys, fallback = '') {
+  for (const key of keys) {
+    if (obj && obj[key] !== undefined && obj[key] !== null && obj[key] !== '') return obj[key];
+  }
+  return fallback;
+}
+
 function normalizeTransaction(t) {
-  const normalized = { ...t };
+  const normalized = {
+    id: String(pick(t, ['id', 'ID', 'Id'], crypto.randomUUID())),
+    fecha: normalizeDateValue(pick(t, ['fecha', 'Fecha', 'date', 'Date'])),
+    usuario: String(pick(t, ['usuario', 'Usuario', 'user', 'User'])).trim(),
+    tipo: String(pick(t, ['tipo', 'Tipo', 'type', 'Type'])).trim(),
+    categoria: String(pick(t, ['categoria', 'Categoría', 'Categoria', 'category'], '-')).trim(),
+    formaPago: String(pick(t, ['formaPago', 'Forma de pago', 'Forma de Pago', 'forma_pago', 'payment'], '')).trim(),
+    monto: Number(String(pick(t, ['monto', 'Monto', 'Monto (S/)', 'amount'], 0)).replace(',', '.')) || 0,
+    descripcion: String(pick(t, ['descripcion', 'Descripción', 'Descripcion', 'description'], '')),
+    nota: String(pick(t, ['nota', 'Nota', 'notes'], '')),
+    createdAt: Number(pick(t, ['createdAt', 'Creado', 'creado'], Date.now())) || Date.now(),
+    updatedAt: Number(pick(t, ['updatedAt', 'Actualizado', 'actualizado'], Date.now())) || Date.now()
+  };
+
   if (normalized.formaPago === 'Tarjeta') normalized.formaPago = 'Yape';
   if (normalized.formaPago === 'Dinero en Físico') normalized.formaPago = 'Efectivo';
+  if (normalized.tipo === 'Ingreso') normalized.tipo = 'Ingresos';
+  if (normalized.tipo === 'Egreso') normalized.tipo = 'Egresos';
+  if (normalized.tipo === 'Ahorro') normalized.tipo = 'Ahorros';
   if (normalized.tipo === 'Tarjeta de Crédito') normalized.tipo = 'Egresos';
   if (normalized.tipo === 'Dinero en Físico') normalized.tipo = 'Ingresos';
   return normalized;
@@ -28,6 +76,11 @@ function loadTransactions() {
   } catch { return []; }
 }
 function persist() { localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions)); }
+function getScriptUrl() {
+  const embedded = CLOUD_SCRIPT_URL.trim();
+  if (embedded && !embedded.includes('PEGA_AQUI')) return embedded;
+  return (localStorage.getItem(SCRIPT_URL_KEY) || '').trim();
+}
 function toast(message) {
   const el = $('toast'); el.textContent = message; el.classList.add('show');
   setTimeout(() => el.classList.remove('show'), 2400);
@@ -50,11 +103,32 @@ function initMonths() {
 }
 function monthTransactions() {
   const month = $('globalMonth').value;
-  return transactions.filter(t => t.fecha.startsWith(month));
+  return transactions.filter(t => String(t.fecha || '').startsWith(month));
+}
+
+function selectLatestMonthWithData() {
+  const validMonths = [...new Set(transactions
+    .map(t => String(t.fecha || '').slice(0, 7))
+    .filter(month => /^\d{4}-\d{2}$/.test(month)))]
+    .sort();
+
+  const latest = validMonths.pop();
+  if (!latest) return;
+
+  const select = $('globalMonth');
+  if (![...select.options].some(option => option.value === latest)) {
+    const [year, month] = latest.split('-').map(Number);
+    const d = new Date(year, month - 1, 1);
+    const label = d.toLocaleDateString('es-PE', { month: 'long', year: 'numeric' });
+    select.add(new Option(label.charAt(0).toUpperCase() + label.slice(1), latest));
+  }
+  select.value = latest;
 }
 function filteredTransactions() {
   const user = $('globalUser').value;
-  return monthTransactions().filter(t => user === 'Todos' || t.usuario === user);
+  const monthly = monthTransactions();
+  const base = monthly.length ? monthly : transactions;
+  return base.filter(t => user === 'Todos' || t.usuario === user);
 }
 function signedAmount(t) {
   if (t.tipo === 'Ingresos') return Number(t.monto);
@@ -63,8 +137,17 @@ function signedAmount(t) {
 }
 function updateDashboard() {
   const data = filteredTransactions();
-  renderPaymentBalances(monthTransactions());
-  renderTable($('recentTableBody'), data.sort(sortNewest).slice(0, 7), false);
+  const ingresos = sum(data.filter(t => t.tipo === 'Ingresos'));
+  const gastos = sum(data.filter(t => t.tipo === 'Egresos'));
+  const ahorros = sum(data.filter(t => t.tipo === 'Ahorros'));
+
+  $('totalIngresos').textContent = money(ingresos);
+  $('totalGastos').textContent = money(gastos);
+  $('totalAhorros').textContent = money(ahorros);
+  $('dineroLibre').textContent = money(ingresos - gastos - ahorros);
+
+  renderPaymentBalances(monthTransactions().length ? monthTransactions() : transactions);
+  renderTable($('recentTableBody'), [...data].sort(sortNewest).slice(0, 7), false);
 }
 function sum(items) { return items.reduce((acc, item) => acc + Number(item.monto), 0); }
 function sortNewest(a, b) { return b.fecha.localeCompare(a.fecha) || b.createdAt - a.createdAt; }
@@ -152,9 +235,10 @@ function editTransaction(id) {
   $('categoria').value = t.categoria; $('formaPago').value = t.formaPago; $('monto').value = t.monto; $('descripcion').value = t.descripcion || ''; $('nota').value = t.nota || '';
   $('formTitle').textContent = 'Editar movimiento'; switchView('nuevo');
 }
-function deleteTransaction(id) {
+async function deleteTransaction(id) {
   if (!confirm('¿Deseas eliminar este movimiento?')) return;
   transactions = transactions.filter(t => t.id !== id); persist(); refreshAll(); toast('Movimiento eliminado');
+  await sendCloudAction({ action: 'delete', id });
 }
 function refreshAll() { updateDashboard(); renderMovements(); }
 
@@ -247,27 +331,86 @@ $('clearData').addEventListener('click', () => {
   transactions = []; persist(); refreshAll(); toast('Datos eliminados');
 });
 
-$('appsScriptUrl').value = localStorage.getItem(SCRIPT_URL_KEY) || '';
-$('saveAppsScript').addEventListener('click', () => { localStorage.setItem(SCRIPT_URL_KEY, $('appsScriptUrl').value.trim()); toast('URL guardada'); });
+$('appsScriptUrl').value = getScriptUrl();
+$('saveAppsScript').addEventListener('click', async () => {
+  localStorage.setItem(SCRIPT_URL_KEY, $('appsScriptUrl').value.trim());
+  toast('URL guardada en este dispositivo');
+  await loadFromCloud();
+});
+async function sendCloudAction(payload) {
+  const url = getScriptUrl();
+  if (!url) return false;
+  try {
+    await fetch(url, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
 async function sendToSheets(record) {
-  const url = localStorage.getItem(SCRIPT_URL_KEY); if (!url) return;
-  try { await fetch(url, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({action:'upsert', record}) }); }
-  catch { /* Mantiene el guardado local aunque falle la nube */ }
+  return sendCloudAction({ action: 'upsert', record });
+}
+function loadFromCloud() {
+  const url = getScriptUrl();
+  if (!url) return Promise.resolve(false);
+  $('syncStatus').textContent = 'Cargando información compartida...';
+  return new Promise((resolve) => {
+    const callbackName = `gastosCloud_${Date.now()}`;
+    const script = document.createElement('script');
+    const cleanup = () => { delete window[callbackName]; script.remove(); };
+    const timeout = setTimeout(() => {
+      cleanup();
+      $('syncStatus').textContent = 'No se pudo cargar la nube; se muestra la copia del dispositivo.';
+      resolve(false);
+    }, 12000);
+    window[callbackName] = (response) => {
+      clearTimeout(timeout);
+      if (response && response.ok && Array.isArray(response.records)) {
+        transactions = response.records.map(normalizeTransaction);
+        persist();
+        selectLatestMonthWithData();
+        refreshAll();
+        $('syncStatus').textContent = `Datos compartidos actualizados: ${transactions.length} movimientos. Mes mostrado: ${$('globalMonth').value || 'sin fecha'}.`;
+        resolve(true);
+      } else {
+        $('syncStatus').textContent = 'La respuesta de Google Sheets no fue válida.';
+        resolve(false);
+      }
+      cleanup();
+    };
+    script.onerror = () => {
+      clearTimeout(timeout); cleanup();
+      $('syncStatus').textContent = 'No se pudo conectar con Google Sheets.';
+      resolve(false);
+    };
+    script.src = `${url}${url.includes('?') ? '&' : '?'}action=list&callback=${callbackName}&_=${Date.now()}`;
+    document.body.appendChild(script);
+  });
 }
 $('syncSheets').addEventListener('click', async () => {
-  const url = $('appsScriptUrl').value.trim();
-  if (!url) return toast('Primero agrega la URL de Apps Script');
-  localStorage.setItem(SCRIPT_URL_KEY, url); $('syncStatus').textContent = 'Enviando movimientos...';
-  try {
-    await fetch(url, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({action:'bulkUpsert', records:transactions}) });
-    $('syncStatus').textContent = 'Sincronización enviada correctamente.'; toast('Datos enviados a Google Sheets');
-  } catch { $('syncStatus').textContent = 'No se pudo conectar. Revisa la URL y el despliegue.'; }
+  const inputUrl = $('appsScriptUrl').value.trim();
+  if (!inputUrl && !getScriptUrl()) return toast('Primero agrega la URL de Apps Script');
+  if (inputUrl) localStorage.setItem(SCRIPT_URL_KEY, inputUrl);
+  $('syncStatus').textContent = 'Enviando movimientos del dispositivo...';
+  const sent = await sendCloudAction({ action: 'bulkUpsert', records: transactions });
+  if (!sent) {
+    $('syncStatus').textContent = 'No se pudo conectar. Revisa la URL y el despliegue.';
+    return;
+  }
+  await new Promise(resolve => setTimeout(resolve, 900));
+  await loadFromCloud();
+  toast('Información sincronizada');
 });
-
 fillSelect('usuario', CONFIG.usuarios);
 fillSelect('tipo', CONFIG.tipos);
 fillSelect('categoria', CONFIG.categorias);
 fillSelect('formaPago', CONFIG.formasPago);
 fillSelect('typeFilter', CONFIG.tipos, {label:'Todos los tipos', value:'Todos'});
 initMonths(); resetForm(); refreshAll();
+loadFromCloud();
 window.editTransaction = editTransaction; window.deleteTransaction = deleteTransaction;

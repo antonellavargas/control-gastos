@@ -30,7 +30,7 @@
 
       <div class="sidebar-note">
         <strong>Datos seguros</strong>
-        <span>Se guardan en este navegador. Exporta una copia regularmente.</span>
+        <span>Se guardan en Google Sheets y también en este dispositivo.</span>
       </div>
     </aside>
 
@@ -52,11 +52,34 @@
       </header>
 
       <section class="view active" id="dashboardView">
+        <div class="summary-grid">
+          <article class="summary-card income">
+            <span>Total ingresos</span>
+            <strong id="totalIngresos">S/ 0.00</strong>
+            <small>Entradas del periodo</small>
+          </article>
+          <article class="summary-card expense">
+            <span>Total gastos</span>
+            <strong id="totalGastos">S/ 0.00</strong>
+            <small>Egresos y pagos</small>
+          </article>
+          <article class="summary-card free">
+            <span>Dinero libre</span>
+            <strong id="dineroLibre">S/ 0.00</strong>
+            <small>Ingresos menos gastos y ahorros</small>
+          </article>
+          <article class="summary-card saving">
+            <span>Total ahorros</span>
+            <strong id="totalAhorros">S/ 0.00</strong>
+            <small>Separado para ahorrar</small>
+          </article>
+        </div>
+
         <article class="panel balances-panel">
           <div class="panel-header">
             <div>
               <h3>Saldos principales</h3>
-              <p>Disponible de Mami y Nella en Efectivo, Yape y Tarjeta Dorada</p>
+              <p>Disponible por usuario y forma de pago</p>
             </div>
           </div>
           <div id="paymentBalances" class="balance-list"></div>
@@ -142,11 +165,11 @@
 
           <article class="panel">
             <h3>Google Sheets</h3>
-            <p>Opcional: pega la URL de tu Web App de Google Apps Script para sincronizar registros entre dispositivos.</p>
+            <p>Conecta la Web App de Google Apps Script para compartir automáticamente los registros entre Mami y Nella.</p>
             <label class="stacked-label">URL de Apps Script<input id="appsScriptUrl" type="url" placeholder="https://script.google.com/macros/s/.../exec" /></label>
             <div class="settings-actions">
               <button class="primary-btn" id="saveAppsScript">Guardar URL</button>
-              <button class="secondary-btn" id="syncSheets">Sincronizar ahora</button>
+              <button class="secondary-btn" id="syncSheets">Subir y sincronizar ahora</button>
             </div>
             <small id="syncStatus" class="status-text"></small>
           </article>

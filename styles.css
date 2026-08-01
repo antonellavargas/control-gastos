@@ -53,7 +53,6 @@ select:focus, input:focus, textarea:focus { border-color: var(--primary); box-sh
 .summary-card.expense { background: linear-gradient(135deg, #ef668d, #f18ab0); }
 .summary-card.free { background: linear-gradient(135deg, #1aa77c, #54c6a2); }
 .summary-card.saving { background: linear-gradient(135deg, #ec9a23, #f7bd58); }
-.dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
 .panel { background: var(--card); border: 1px solid var(--border); border-radius: 17px; padding: 20px; box-shadow: var(--shadow); }
 .panel-header { display: flex; justify-content: space-between; align-items: center; gap: 14px; margin-bottom: 18px; }
 .panel h3 { margin: 0 0 5px; font-size: 17px; }
@@ -98,7 +97,6 @@ th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spa
 .toast.show { opacity: 1; transform: translateY(0); }
 @media (max-width: 1100px) {
   .summary-grid { grid-template-columns: repeat(2, 1fr); }
-  .dashboard-grid { grid-template-columns: 1fr; }
   .balance-list { grid-template-columns: 1fr; }
   .transaction-form { grid-template-columns: repeat(2, 1fr); }
 }
