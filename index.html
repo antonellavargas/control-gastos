@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#6d4aff" />
+  <title>Mi Control de Gastos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon">✦</div>
+        <div>
+          <h1>Mi dinero</h1>
+          <p>Control familiar</p>
+        </div>
+      </div>
+
+      <nav class="nav-list">
+        <button class="nav-btn active" data-view="dashboard">📊 Resumen</button>
+        <button class="nav-btn" data-view="movimientos">🧾 Movimientos</button>
+        <button class="nav-btn" data-view="nuevo">➕ Nuevo registro</button>
+        <button class="nav-btn" data-view="configuracion">⚙️ Configuración</button>
+      </nav>
+
+      <div class="sidebar-note">
+        <strong>Datos seguros</strong>
+        <span>Se guardan en este navegador. Exporta una copia regularmente.</span>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">CONTROL FINANCIERO</p>
+          <h2 id="pageTitle">Resumen mensual</h2>
+        </div>
+        <div class="topbar-actions">
+          <select id="globalMonth" aria-label="Mes"></select>
+          <select id="globalUser" aria-label="Usuario">
+            <option value="Todos">Todos los usuarios</option>
+            <option value="Mami">Mami</option>
+            <option value="Nella">Nella</option>
+          </select>
+          <button class="primary-btn" id="quickAdd">+ Registrar</button>
+        </div>
+      </header>
+
+      <section class="view active" id="dashboardView">
+        <div class="summary-grid">
+          <article class="summary-card income">
+            <span>Total ingresos</span>
+            <strong id="totalIngresos">S/ 0.00</strong>
+            <small>Entradas del periodo</small>
+          </article>
+          <article class="summary-card expense">
+            <span>Total gastos</span>
+            <strong id="totalGastos">S/ 0.00</strong>
+            <small>Egresos y pagos</small>
+          </article>
+          <article class="summary-card free">
+            <span>Dinero libre</span>
+            <strong id="dineroLibre">S/ 0.00</strong>
+            <small>Ingresos menos gastos y ahorros</small>
+          </article>
+          <article class="summary-card saving">
+            <span>Total ahorros</span>
+            <strong id="totalAhorros">S/ 0.00</strong>
+            <small>Separado para ahorrar</small>
+          </article>
+        </div>
+
+        <article class="panel balances-panel">
+          <div class="panel-header">
+            <div>
+              <h3>Saldos principales</h3>
+              <p>Disponible por usuario y forma de pago</p>
+            </div>
+          </div>
+          <div id="paymentBalances" class="balance-list"></div>
+        </article>
+
+        <article class="panel recent-panel">
+          <div class="panel-header">
+            <div>
+              <h3>Últimos movimientos</h3>
+              <p>Registros más recientes del filtro seleccionado</p>
+            </div>
+            <button class="text-btn" data-go="movimientos">Ver todos →</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Fecha</th><th>Usuario</th><th>Tipo</th><th>Categoría</th><th>Medio</th><th>Descripción</th><th>Monto</th></tr></thead>
+              <tbody id="recentTableBody"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="view" id="movimientosView">
+        <article class="panel">
+          <div class="panel-header movements-header">
+            <div>
+              <h3>Historial de movimientos</h3>
+              <p>Busca, filtra, edita o elimina registros</p>
+            </div>
+            <div class="inline-actions">
+              <input id="searchInput" type="search" placeholder="Buscar descripción..." />
+              <select id="typeFilter"><option value="Todos">Todos los tipos</option></select>
+              <button class="secondary-btn" id="exportCurrent">Exportar mes</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Fecha</th><th>Usuario</th><th>Tipo</th><th>Categoría</th><th>Medio</th><th>Descripción</th><th>Monto</th><th>Acciones</th></tr></thead>
+              <tbody id="allTableBody"></tbody>
+            </table>
+          </div>
+          <div class="empty-state" id="emptyState" hidden>No hay movimientos para mostrar.</div>
+        </article>
+      </section>
+
+      <section class="view" id="nuevoView">
+        <article class="panel form-panel">
+          <div class="panel-header">
+            <div>
+              <h3 id="formTitle">Registrar movimiento</h3>
+              <p>Completa los datos y guarda el registro</p>
+            </div>
+          </div>
+          <form id="transactionForm" class="transaction-form">
+            <input type="hidden" id="editId" />
+            <label>Fecha<input id="fecha" type="date" required /></label>
+            <label>Usuario<select id="usuario" required></select></label>
+            <label>Tipo<select id="tipo" required></select></label>
+            <label>Categoría<select id="categoria" required></select></label>
+            <label>Forma de pago<select id="formaPago" required></select></label>
+            <label>Monto (S/)<input id="monto" type="number" min="0.01" step="0.01" placeholder="0.00" required /></label>
+            <label class="full-width">Descripción<input id="descripcion" type="text" maxlength="100" placeholder="Ej.: Almuerzo, pago de internet, sueldo..." /></label>
+            <label class="full-width">Nota<textarea id="nota" rows="3" maxlength="250" placeholder="Detalle opcional"></textarea></label>
+            <div class="form-actions full-width">
+              <button type="button" class="secondary-btn" id="cancelEdit">Limpiar</button>
+              <button type="submit" class="primary-btn">Guardar movimiento</button>
+            </div>
+          </form>
+        </article>
+      </section>
+
+      <section class="view" id="configuracionView">
+        <div class="settings-grid">
+          <article class="panel">
+            <h3>Copias y exportación</h3>
+            <p>Descarga tus datos para abrirlos en Excel o restaurarlos después.</p>
+            <div class="settings-actions">
+              <button class="primary-btn" id="exportAll">Exportar todo a Excel</button>
+              <button class="secondary-btn" id="backupJson">Descargar respaldo JSON</button>
+              <label class="secondary-btn file-label">Restaurar respaldo<input type="file" id="restoreJson" accept="application/json" hidden /></label>
+            </div>
+          </article>
+
+          <article class="panel">
+            <h3>Google Sheets</h3>
+            <p>Opcional: pega la URL de tu Web App de Google Apps Script para sincronizar registros entre dispositivos.</p>
+            <label class="stacked-label">URL de Apps Script<input id="appsScriptUrl" type="url" placeholder="https://script.google.com/macros/s/.../exec" /></label>
+            <div class="settings-actions">
+              <button class="primary-btn" id="saveAppsScript">Guardar URL</button>
+              <button class="secondary-btn" id="syncSheets">Sincronizar ahora</button>
+            </div>
+            <small id="syncStatus" class="status-text"></small>
+          </article>
+
+          <article class="panel danger-zone">
+            <h3>Reiniciar datos</h3>
+            <p>Elimina todos los movimientos guardados en este navegador.</p>
+            <button class="danger-btn" id="clearData">Eliminar todos los datos</button>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
