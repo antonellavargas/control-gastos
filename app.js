@@ -7,6 +7,9 @@ const CONFIG = {
 
 const STORAGE_KEY = 'controlGastosMovimientosV1';
 const SCRIPT_URL_KEY = 'controlGastosAppsScriptUrl';
+// Pega aquí la URL /exec de tu Apps Script antes de publicar en GitHub.
+// Así Mami y Nella usarán automáticamente la misma base de datos.
+const CLOUD_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwG6XTEAQJiE2C4skqeeG7-h-oVK0c2un9Ptisob_CftJHoYJB4TH14Ow4DyVWbGKYmcw/exec';
 let transactions = loadTransactions();
 
 const $ = (id) => document.getElementById(id);
@@ -28,6 +31,11 @@ function loadTransactions() {
   } catch { return []; }
 }
 function persist() { localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions)); }
+function getScriptUrl() {
+  const embedded = CLOUD_SCRIPT_URL.trim();
+  if (embedded && !embedded.includes('PEGA_AQUI')) return embedded;
+  return (localStorage.getItem(SCRIPT_URL_KEY) || '').trim();
+}
 function toast(message) {
   const el = $('toast'); el.textContent = message; el.classList.add('show');
   setTimeout(() => el.classList.remove('show'), 2400);
@@ -161,9 +169,10 @@ function editTransaction(id) {
   $('categoria').value = t.categoria; $('formaPago').value = t.formaPago; $('monto').value = t.monto; $('descripcion').value = t.descripcion || ''; $('nota').value = t.nota || '';
   $('formTitle').textContent = 'Editar movimiento'; switchView('nuevo');
 }
-function deleteTransaction(id) {
+async function deleteTransaction(id) {
   if (!confirm('¿Deseas eliminar este movimiento?')) return;
   transactions = transactions.filter(t => t.id !== id); persist(); refreshAll(); toast('Movimiento eliminado');
+  await sendCloudAction({ action: 'delete', id });
 }
 function refreshAll() { updateDashboard(); renderMovements(); }
 
@@ -256,27 +265,85 @@ $('clearData').addEventListener('click', () => {
   transactions = []; persist(); refreshAll(); toast('Datos eliminados');
 });
 
-$('appsScriptUrl').value = localStorage.getItem(SCRIPT_URL_KEY) || '';
-$('saveAppsScript').addEventListener('click', () => { localStorage.setItem(SCRIPT_URL_KEY, $('appsScriptUrl').value.trim()); toast('URL guardada'); });
+$('appsScriptUrl').value = getScriptUrl();
+$('saveAppsScript').addEventListener('click', async () => {
+  localStorage.setItem(SCRIPT_URL_KEY, $('appsScriptUrl').value.trim());
+  toast('URL guardada en este dispositivo');
+  await loadFromCloud();
+});
+async function sendCloudAction(payload) {
+  const url = getScriptUrl();
+  if (!url) return false;
+  try {
+    await fetch(url, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
 async function sendToSheets(record) {
-  const url = localStorage.getItem(SCRIPT_URL_KEY); if (!url) return;
-  try { await fetch(url, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({action:'upsert', record}) }); }
-  catch { /* Mantiene el guardado local aunque falle la nube */ }
+  return sendCloudAction({ action: 'upsert', record });
+}
+function loadFromCloud() {
+  const url = getScriptUrl();
+  if (!url) return Promise.resolve(false);
+  $('syncStatus').textContent = 'Cargando información compartida...';
+  return new Promise((resolve) => {
+    const callbackName = `gastosCloud_${Date.now()}`;
+    const script = document.createElement('script');
+    const cleanup = () => { delete window[callbackName]; script.remove(); };
+    const timeout = setTimeout(() => {
+      cleanup();
+      $('syncStatus').textContent = 'No se pudo cargar la nube; se muestra la copia del dispositivo.';
+      resolve(false);
+    }, 12000);
+    window[callbackName] = (response) => {
+      clearTimeout(timeout);
+      if (response && response.ok && Array.isArray(response.records)) {
+        transactions = response.records.map(normalizeTransaction);
+        persist();
+        refreshAll();
+        $('syncStatus').textContent = `Datos compartidos actualizados: ${transactions.length} movimientos.`;
+        resolve(true);
+      } else {
+        $('syncStatus').textContent = 'La respuesta de Google Sheets no fue válida.';
+        resolve(false);
+      }
+      cleanup();
+    };
+    script.onerror = () => {
+      clearTimeout(timeout); cleanup();
+      $('syncStatus').textContent = 'No se pudo conectar con Google Sheets.';
+      resolve(false);
+    };
+    script.src = `${url}${url.includes('?') ? '&' : '?'}action=list&callback=${callbackName}&_=${Date.now()}`;
+    document.body.appendChild(script);
+  });
 }
 $('syncSheets').addEventListener('click', async () => {
-  const url = $('appsScriptUrl').value.trim();
-  if (!url) return toast('Primero agrega la URL de Apps Script');
-  localStorage.setItem(SCRIPT_URL_KEY, url); $('syncStatus').textContent = 'Enviando movimientos...';
-  try {
-    await fetch(url, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({action:'bulkUpsert', records:transactions}) });
-    $('syncStatus').textContent = 'Sincronización enviada correctamente.'; toast('Datos enviados a Google Sheets');
-  } catch { $('syncStatus').textContent = 'No se pudo conectar. Revisa la URL y el despliegue.'; }
+  const inputUrl = $('appsScriptUrl').value.trim();
+  if (!inputUrl && !getScriptUrl()) return toast('Primero agrega la URL de Apps Script');
+  if (inputUrl) localStorage.setItem(SCRIPT_URL_KEY, inputUrl);
+  $('syncStatus').textContent = 'Enviando movimientos del dispositivo...';
+  const sent = await sendCloudAction({ action: 'bulkUpsert', records: transactions });
+  if (!sent) {
+    $('syncStatus').textContent = 'No se pudo conectar. Revisa la URL y el despliegue.';
+    return;
+  }
+  await new Promise(resolve => setTimeout(resolve, 900));
+  await loadFromCloud();
+  toast('Información sincronizada');
 });
-
 fillSelect('usuario', CONFIG.usuarios);
 fillSelect('tipo', CONFIG.tipos);
 fillSelect('categoria', CONFIG.categorias);
 fillSelect('formaPago', CONFIG.formasPago);
 fillSelect('typeFilter', CONFIG.tipos, {label:'Todos los tipos', value:'Todos'});
 initMonths(); resetForm(); refreshAll();
+loadFromCloud();
 window.editTransaction = editTransaction; window.deleteTransaction = deleteTransaction;

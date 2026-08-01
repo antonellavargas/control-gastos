@@ -1,32 +1,62 @@
-# Control de gastos familiar
+# Mi Control de Gastos — Mami y Nella
 
-Web app estática para GitHub Pages con:
+Web app para GitHub Pages con almacenamiento compartido en Google Sheets, copia local y exportación a Excel.
 
-- Registro de ingresos, egresos, ahorros, dinero físico y tarjeta de crédito.
-- Usuarios Mami y Nella.
-- Resumen mensual y filtro por usuario.
-- Saldos por Yape, efectivo, tarjetas y otros medios.
-- Historial editable.
-- Exportación mensual o completa a Excel.
-- Respaldo y restauración JSON.
-- Sincronización opcional con Google Sheets mediante Apps Script.
+## 1. Crear la hoja compartida
 
-## Publicar en GitHub Pages
+1. Crea una hoja nueva en Google Sheets.
+2. Copia el ID que aparece en la URL entre `/d/` y `/edit`.
+3. En la hoja entra a **Extensiones > Apps Script**.
+4. Borra el código inicial y pega el contenido de `google-apps-script.gs`.
+5. Reemplaza `PEGA_AQUI_EL_ID_DE_TU_GOOGLE_SHEET` con el ID de tu hoja.
+6. Guarda el proyecto.
 
-1. Crea un repositorio, por ejemplo `control-gastos`.
-2. Sube `index.html`, `styles.css` y `app.js` a la raíz.
-3. En GitHub entra a **Settings > Pages**.
-4. En **Build and deployment**, selecciona **Deploy from a branch**.
-5. Elige la rama `main` y la carpeta `/root`.
-6. Guarda. Tu URL será parecida a:
-   `https://TU-USUARIO.github.io/control-gastos/`
+## 2. Publicar Apps Script
 
-## Importante sobre los datos
+1. Pulsa **Implementar > Nueva implementación**.
+2. Tipo: **Aplicación web**.
+3. Ejecutar como: **Yo**.
+4. Quién tiene acceso: **Cualquier persona**.
+5. Autoriza los permisos y copia la URL que termina en `/exec`.
 
-Sin Google Sheets, los movimientos se guardan en `localStorage`, es decir, solo en el navegador y dispositivo donde se registraron. Usa la exportación o el respaldo JSON con frecuencia.
+## 3. Conectar la web
 
-Para compartir datos entre dispositivos y usuarios, configura el archivo `google-apps-script.gs` siguiendo sus instrucciones y pega la URL resultante en **Configuración > Google Sheets**.
+Abre `app.js` y reemplaza:
 
-## Recomendación de privacidad
+```js
+const CLOUD_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwG6XTEAQJiE2C4skqeeG7-h-oVK0c2un9Ptisob_CftJHoYJB4TH14Ow4DyVWbGKYmcw/exec';
+```
 
-No publiques claves, contraseñas ni información bancaria. La URL de Apps Script permite agregar registros a la hoja vinculada; úsala solo con personas de confianza.
+por tu URL `/exec`. No elimines las comillas.
+
+## 4. Antes de publicar
+
+Como ya tienes movimientos guardados en tu navegador:
+
+1. Abre la versión actual de la web.
+2. Ve a **Configuración**.
+3. Pega la URL de Apps Script.
+4. Pulsa **Subir y sincronizar ahora**.
+
+Esto copia tus movimientos actuales a Google Sheets.
+
+## 5. Publicar en GitHub Pages
+
+Sube a la raíz del repositorio:
+
+- `index.html`
+- `styles.css`
+- `app.js`
+
+En GitHub: **Settings > Pages > Deploy from a branch > main > /root**.
+
+## Funcionamiento
+
+- Al abrir la web, descarga automáticamente los registros de Google Sheets.
+- Al registrar o editar, actualiza Google Sheets y la copia local.
+- Al eliminar, elimina también el registro compartido.
+- Si no hay internet, muestra la última copia guardada en el dispositivo.
+
+## Privacidad
+
+La web no solicita contraseña. Cualquier persona que conozca la URL de GitHub Pages podría abrirla, y cualquier persona que conozca la URL de Apps Script podría consultar la información. Evita publicar ambas URLs en redes sociales o repositorios ajenos.
