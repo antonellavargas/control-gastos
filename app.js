@@ -146,7 +146,8 @@ function updateDashboard() {
   $('totalAhorros').textContent = money(ahorros);
   $('dineroLibre').textContent = money(ingresos - gastos - ahorros);
 
-  renderPaymentBalances(monthTransactions().length ? monthTransactions() : transactions);
+  // Los paneles de Mami y Nella muestran el saldo acumulado actual, no solo el mes.
+  renderPaymentBalances(transactions);
   renderTable($('recentTableBody'), [...data].sort(sortNewest).slice(0, 7), false);
 }
 function sum(items) { return items.reduce((acc, item) => acc + Number(item.monto), 0); }
@@ -179,12 +180,13 @@ function renderPaymentBalances(data) {
     const ingresos = sum(group.rows.filter(t => t.tipo === 'Ingresos'));
     const gastos = sum(group.rows.filter(t => t.tipo === 'Egresos'));
     const ahorros = sum(group.rows.filter(t => t.tipo === 'Ahorros'));
+    const saldoActual = group.rows.reduce((acc, t) => acc + signedAmount(t), 0);
     const avatar = group.label === 'Mami' ? '👩‍🦰' : '👩🏻';
     return `<section class="user-balance-group user-card-${group.label.toLowerCase()}">
       <div class="user-card-heading">
         <div class="user-avatar">${avatar}</div>
         <div><small>Saldo principal</small><h4>${group.label}</h4></div>
-        <div class="user-free-total"><small>Dinero libre</small><b>${money(ingresos - gastos - ahorros)}</b></div>
+        <div class="user-free-total"><small>Saldo actual</small><b>${money(saldoActual)}</b></div>
       </div>
       <div class="payment-card-list">${balances}</div>
       <div class="user-mini-summary">
