@@ -8,17 +8,18 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=32" />
+  <link rel="stylesheet" href="styles.css?v=40" />
 </head>
 <body>
   <div class="app-shell">
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-icon">✦</div>
-        <div>
-          <h1>Mi dinero</h1>
-          <p>Control familiar</p>
+        <div class="brand-copy">
+          <h1>N&M Finanzas</h1>
+          <p>Nuestro dinero familiar</p>
         </div>
+        <button class="icon-btn sidebar-toggle" id="sidebarToggle" title="Contraer menú" aria-label="Contraer menú">‹</button>
       </div>
 
       <nav class="nav-list">
@@ -29,8 +30,8 @@
       </nav>
 
       <div class="sidebar-note">
-        <strong>Datos seguros</strong>
-        <span>Se guardan en Google Sheets y también en este dispositivo.</span>
+        <div class="sync-dot online"></div>
+        <div><strong>Google Sheets conectado</strong><span id="sidebarSyncText">Cargando última sincronización…</span></div>
       </div>
     </aside>
 
@@ -41,6 +42,8 @@
           <h2 id="pageTitle">Resumen general</h2>
         </div>
         <div class="topbar-actions">
+          <div class="sync-pill" id="syncPill"><span class="sync-dot online"></span><span id="syncPillText">Sincronizando…</span></div>
+          <button class="icon-btn" id="themeToggle" title="Cambiar tema" aria-label="Cambiar tema">☾</button>
           <button class="primary-btn" id="quickAdd">+ Registrar</button>
         </div>
       </header>
@@ -48,22 +51,22 @@
       <section class="view active" id="dashboardView">
         <div class="summary-grid">
           <article class="summary-card income">
-            <span>Total ingresos</span>
+            <div class="summary-icon">↗</div><span>Total ingresos</span>
             <strong id="totalIngresos">S/ 0.00</strong>
             <small>Entradas acumuladas</small>
           </article>
           <article class="summary-card expense">
-            <span>Total gastos</span>
+            <div class="summary-icon">↘</div><span>Total gastos</span>
             <strong id="totalGastos">S/ 0.00</strong>
             <small>Egresos acumulados, incluida tarjeta</small>
           </article>
           <article class="summary-card free">
-            <span>Dinero libre</span>
+            <div class="summary-icon">◎</div><span>Disponible</span>
             <strong id="dineroLibre">S/ 0.00</strong>
             <small>Saldo líquido en Efectivo, Yape y Plin</small>
           </article>
           <article class="summary-card saving">
-            <span>Total ahorros</span>
+            <div class="summary-icon">◇</div><span>Ahorros separados</span>
             <strong id="totalAhorros">S/ 0.00</strong>
             <small>Dinero registrado aparte como ahorro</small>
           </article>
@@ -79,6 +82,11 @@
           <div id="paymentBalances" class="balance-list"></div>
         </article>
 
+        <article class="panel distribution-panel">
+          <div class="panel-header"><div><h3>¿Dónde está el dinero disponible?</h3><p>Distribución acumulada entre Efectivo, Yape y Plin</p></div></div>
+          <div id="liquidDistribution" class="liquid-distribution"></div>
+        </article>
+
         <article class="panel recent-panel">
           <div class="panel-header">
             <div>
@@ -87,7 +95,8 @@
             </div>
             <button class="text-btn" data-go="movimientos">Ver todos →</button>
           </div>
-          <div class="table-wrap">
+          <div class="recent-list" id="recentCards"></div>
+          <div class="table-wrap recent-table-desktop">
             <table>
               <thead><tr><th>Fecha</th><th>Usuario</th><th>Tipo</th><th>Categoría</th><th>Medio</th><th>Descripción</th><th>Monto</th></tr></thead>
               <tbody id="recentTableBody"></tbody>
@@ -184,8 +193,16 @@
     </main>
   </div>
 
+  <button class="mobile-fab" id="mobileFab" aria-label="Registrar movimiento">+</button>
+  <nav class="mobile-nav" aria-label="Navegación móvil">
+    <button class="mobile-nav-btn active" data-view="dashboard"><span>⌂</span>Resumen</button>
+    <button class="mobile-nav-btn" data-view="movimientos"><span>≡</span>Movimientos</button>
+    <button class="mobile-nav-btn" data-view="nuevo"><span>＋</span>Registrar</button>
+    <button class="mobile-nav-btn" data-view="configuracion"><span>⚙</span>Ajustes</button>
+  </nav>
+
   <div class="toast" id="toast"></div>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-  <script src="app.js?v=32"></script>
+  <script src="app.js?v=40"></script>
 </body>
 </html>

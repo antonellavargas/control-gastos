@@ -157,7 +157,10 @@ function updateDashboard() {
   $('dineroLibre').textContent = money(liquidBalance(data));
 
   renderPaymentBalances(data);
-  renderTable($('recentTableBody'), [...data].sort(sortNewest).slice(0, 7), false);
+  renderLiquidDistribution(data);
+  const recent = [...data].sort(sortNewest).slice(0, 7);
+  renderTable($('recentTableBody'), recent, false);
+  renderRecentCards(recent);
 }
 function sum(items) { return items.reduce((acc, item) => acc + Number(item.monto), 0); }
 function sortNewest(a, b) { return b.fecha.localeCompare(a.fecha) || b.createdAt - a.createdAt; }
@@ -195,7 +198,7 @@ function renderPaymentBalances(data) {
     const balances = visibleBalances.map(item => `
       <div class="balance-item">
         <div class="balance-icon">${item.icon}</div>
-        <div><b>${item.label}</b><small>${item.label === 'Tarjeta Dorada' ? 'Deuda aparte de' : 'Saldo de'} ${group.label}</small></div>
+        <div><b>${item.label}</b><small>${item.label === 'Tarjeta Dorada' ? 'Consumo / deuda aparte' : 'Saldo disponible'} · ${group.label}</small></div>
         <div class="balance-amount">${money(paymentBalance(group.rows, item.payments))}</div>
       </div>`).join('');
     const ingresos = sum(group.rows.filter(t => t.tipo === 'Ingresos'));
@@ -218,6 +221,31 @@ function renderPaymentBalances(data) {
     </section>`;
   }).join('');
 }
+
+function renderLiquidDistribution(data) {
+  const items = [
+    { label: 'Efectivo', icon: '💵', value: paymentBalance(data, ['Efectivo']) },
+    { label: 'Yape', icon: '📱', value: paymentBalance(data, ['Yape']) },
+    { label: 'Plin', icon: '⚡', value: paymentBalance(data, ['Plin']) }
+  ];
+  const total = items.reduce((acc, item) => acc + Math.max(0, item.value), 0);
+  $('liquidDistribution').innerHTML = items.map(item => {
+    const pct = total > 0 ? Math.max(0, item.value) / total * 100 : 0;
+    return `<div class="distribution-row"><div class="distribution-label"><span>${item.icon} ${item.label}</span><b>${money(item.value)}</b></div><div class="distribution-track"><span style="width:${pct}%"></span></div><small>${pct.toFixed(0)}% del disponible</small></div>`;
+  }).join('');
+}
+
+function renderRecentCards(data) {
+  const target = $('recentCards');
+  if (!target) return;
+  target.innerHTML = data.length ? data.map(t => {
+    const cls = t.tipo === 'Ingresos' ? 'income' : t.tipo === 'Ahorros' ? 'saving' : t.formaPago === 'Tarjeta Dorada' ? 'card-debt' : 'expense';
+    const prefix = t.tipo === 'Ingresos' ? '+' : t.tipo === 'Ahorros' ? '↗' : '-';
+    const icon = t.tipo === 'Ingresos' ? '↗' : t.tipo === 'Ahorros' ? '◇' : t.formaPago === 'Tarjeta Dorada' ? '💳' : '↘';
+    return `<article class="movement-card ${cls}"><div class="movement-card-icon">${icon}</div><div class="movement-card-main"><b>${escapeHtml(t.descripcion || t.categoria || 'Movimiento')}</b><span>${escapeHtml(t.usuario)} · ${escapeHtml(t.formaPago)} · ${formatDate(t.fecha)}</span></div><strong>${prefix} ${money(t.monto)}</strong></article>`;
+  }).join('') : '<div class="empty-state compact">Todavía no hay movimientos.</div>';
+}
+
 function renderCategoryBars(data) {
   const expenses = data.filter(t => t.tipo === 'Egresos');
   const grouped = {};
@@ -252,7 +280,7 @@ function formatDate(date) { return new Date(`${date}T12:00:00`).toLocaleDateStri
 function escapeHtml(value='') { return String(value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
 function switchView(view) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+  document.querySelectorAll('.nav-btn, .mobile-nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
   $(`${view}View`).classList.add('active');
   $('pageTitle').textContent = ({dashboard:'Resumen general', movimientos:'Movimientos', nuevo:'Nuevo registro', configuracion:'Configuración'})[view];
   if (view === 'movimientos') renderMovements();
@@ -288,9 +316,10 @@ $('transactionForm').addEventListener('submit', async (e) => {
   await sendToSheets(record);
 });
 
-document.querySelectorAll('.nav-btn').forEach(btn => btn.addEventListener('click', () => switchView(btn.dataset.view)));
+document.querySelectorAll('.nav-btn, .mobile-nav-btn').forEach(btn => btn.addEventListener('click', () => switchView(btn.dataset.view)));
 document.querySelectorAll('[data-go]').forEach(btn => btn.addEventListener('click', () => switchView(btn.dataset.go)));
 $('quickAdd').addEventListener('click', () => { resetForm(); switchView('nuevo'); });
+$('mobileFab').addEventListener('click', () => { resetForm(); switchView('nuevo'); });
 $('cancelEdit').addEventListener('click', resetForm);
 $('globalMonth').addEventListener('change', refreshAll);
 $('globalUser').addEventListener('change', refreshAll);
@@ -389,10 +418,21 @@ async function sendCloudAction(payload) {
 async function sendToSheets(record) {
   return sendCloudAction({ action: 'upsert', record });
 }
+
+function setSyncVisual(message, state = 'online') {
+  const pill = $('syncPill');
+  const pillText = $('syncPillText');
+  const sidebarText = $('sidebarSyncText');
+  if (pill) { pill.className = `sync-pill ${state}`; }
+  if (pillText) pillText.textContent = message;
+  if (sidebarText) sidebarText.textContent = message;
+}
+
 function loadFromCloud() {
   const url = getScriptUrl();
   if (!url) return Promise.resolve(false);
   $('syncStatus').textContent = 'Cargando información compartida...';
+  setSyncVisual('Sincronizando…', 'loading');
   return new Promise((resolve) => {
     const callbackName = `gastosCloud_${Date.now()}`;
     const script = document.createElement('script');
@@ -400,6 +440,7 @@ function loadFromCloud() {
     const timeout = setTimeout(() => {
       cleanup();
       $('syncStatus').textContent = 'No se pudo cargar la nube; se muestra la copia del dispositivo.';
+      setSyncVisual('Sin conexión · copia local', 'offline');
       resolve(false);
     }, 12000);
     window[callbackName] = (response) => {
@@ -409,10 +450,13 @@ function loadFromCloud() {
         persist();
         initMonths();
         refreshAll();
+        const syncTime = new Date().toLocaleTimeString('es-PE', {hour:'2-digit', minute:'2-digit'});
         $('syncStatus').textContent = `Datos compartidos actualizados: ${transactions.length} movimientos.`;
+        setSyncVisual(`Sincronizado ${syncTime}`, 'online');
         resolve(true);
       } else {
         $('syncStatus').textContent = 'La respuesta de Google Sheets no fue válida.';
+        setSyncVisual('Error de sincronización', 'offline');
         resolve(false);
       }
       cleanup();
@@ -420,6 +464,7 @@ function loadFromCloud() {
     script.onerror = () => {
       clearTimeout(timeout); cleanup();
       $('syncStatus').textContent = 'No se pudo conectar con Google Sheets.';
+      setSyncVisual('Sin conexión', 'offline');
       resolve(false);
     };
     script.src = `${url}${url.includes('?') ? '&' : '?'}action=list&callback=${callbackName}&_=${Date.now()}`;
@@ -440,6 +485,21 @@ $('syncSheets').addEventListener('click', async () => {
   await loadFromCloud();
   toast('Información sincronizada');
 });
+
+const savedTheme = localStorage.getItem('controlGastosTheme') || 'light';
+document.documentElement.dataset.theme = savedTheme;
+$('themeToggle').textContent = savedTheme === 'dark' ? '☀' : '☾';
+$('themeToggle').addEventListener('click', () => {
+  const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  localStorage.setItem('controlGastosTheme', next);
+  $('themeToggle').textContent = next === 'dark' ? '☀' : '☾';
+});
+$('sidebarToggle').addEventListener('click', () => {
+  document.body.classList.toggle('sidebar-collapsed');
+  $('sidebarToggle').textContent = document.body.classList.contains('sidebar-collapsed') ? '›' : '‹';
+});
+
 fillSelect('usuario', CONFIG.usuarios);
 fillSelect('tipo', CONFIG.tipos);
 fillSelect('categoria', CONFIG.categorias);
