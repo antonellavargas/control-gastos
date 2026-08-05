@@ -92,51 +92,47 @@ function fillSelect(id, items, firstOption = null) {
 }
 function initMonths() {
   const select = $('globalMonth');
-  const now = new Date();
-  for (let i = -18; i <= 6; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  select.innerHTML = '';
+  select.add(new Option('Todos los meses', 'Todos'));
+
+  const months = [...new Set(transactions
+    .map(t => String(t.fecha || '').slice(0, 7))
+    .filter(month => /^\d{4}-\d{2}$/.test(month)))]
+    .sort()
+    .reverse();
+
+  months.forEach(value => {
+    const [year, month] = value.split('-').map(Number);
+    const d = new Date(year, month - 1, 1);
     const label = d.toLocaleDateString('es-PE', { month: 'long', year: 'numeric' });
     select.add(new Option(label.charAt(0).toUpperCase() + label.slice(1), value));
-  }
-  select.value = today.slice(0, 7);
+  });
+  select.value = 'Todos';
 }
 function monthTransactions() {
   const month = $('globalMonth').value;
+  if (!month || month === 'Todos') return [...transactions];
   return transactions.filter(t => String(t.fecha || '').startsWith(month));
-}
-
-function selectLatestMonthWithData() {
-  const validMonths = [...new Set(transactions
-    .map(t => String(t.fecha || '').slice(0, 7))
-    .filter(month => /^\d{4}-\d{2}$/.test(month)))]
-    .sort();
-
-  const latest = validMonths.pop();
-  if (!latest) return;
-
-  const select = $('globalMonth');
-  if (![...select.options].some(option => option.value === latest)) {
-    const [year, month] = latest.split('-').map(Number);
-    const d = new Date(year, month - 1, 1);
-    const label = d.toLocaleDateString('es-PE', { month: 'long', year: 'numeric' });
-    select.add(new Option(label.charAt(0).toUpperCase() + label.slice(1), latest));
-  }
-  select.value = latest;
 }
 function filteredTransactions() {
   const user = $('globalUser').value;
-  const monthly = monthTransactions();
-  const base = monthly.length ? monthly : transactions;
-  return base.filter(t => user === 'Todos' || t.usuario === user);
+  return monthTransactions().filter(t => user === 'Todos' || t.usuario === user);
 }
-function signedAmount(t) {
+function isLiquidPayment(t) {
+  return ['Efectivo', 'Yape', 'Plin'].includes(t.formaPago);
+}
+function liquidSignedAmount(t) {
+  if (!isLiquidPayment(t) || t.tipo === 'Ahorros') return 0;
   if (t.tipo === 'Ingresos') return Number(t.monto);
-  if (t.tipo === 'Egresos' || t.tipo === 'Ahorros') return -Number(t.monto);
+  if (t.tipo === 'Egresos') return -Number(t.monto);
   return 0;
 }
+function liquidBalance(rows) {
+  return rows.reduce((acc, t) => acc + liquidSignedAmount(t), 0);
+}
 function updateDashboard() {
-  const data = filteredTransactions();
+  // El resumen principal siempre muestra el acumulado general, sin filtro mensual.
+  const data = [...transactions];
   const ingresos = sum(data.filter(t => t.tipo === 'Ingresos'));
   const gastos = sum(data.filter(t => t.tipo === 'Egresos'));
   const ahorros = sum(data.filter(t => t.tipo === 'Ahorros'));
@@ -144,18 +140,29 @@ function updateDashboard() {
   $('totalIngresos').textContent = money(ingresos);
   $('totalGastos').textContent = money(gastos);
   $('totalAhorros').textContent = money(ahorros);
-  $('dineroLibre').textContent = money(ingresos - gastos - ahorros);
+  $('dineroLibre').textContent = money(liquidBalance(data));
 
-  // Los paneles de Mami y Nella muestran el saldo acumulado actual, no solo el mes.
-  renderPaymentBalances(transactions);
+  renderPaymentBalances(data);
   renderTable($('recentTableBody'), [...data].sort(sortNewest).slice(0, 7), false);
 }
 function sum(items) { return items.reduce((acc, item) => acc + Number(item.monto), 0); }
 function sortNewest(a, b) { return b.fecha.localeCompare(a.fecha) || b.createdAt - a.createdAt; }
 function paymentBalance(rows, paymentNames) {
-  return rows
-    .filter(t => paymentNames.includes(t.formaPago))
-    .reduce((acc, t) => acc + signedAmount(t), 0);
+  const selected = rows.filter(t => paymentNames.includes(t.formaPago) && t.tipo !== 'Ahorros');
+  // Tarjeta Dorada se maneja como deuda aparte: los egresos aumentan la deuda
+  // y los ingresos registrados en la tarjeta la reducen.
+  if (paymentNames.includes('Tarjeta Dorada')) {
+    return selected.reduce((acc, t) => {
+      if (t.tipo === 'Egresos') return acc + Number(t.monto);
+      if (t.tipo === 'Ingresos') return acc - Number(t.monto);
+      return acc;
+    }, 0);
+  }
+  return selected.reduce((acc, t) => {
+    if (t.tipo === 'Ingresos') return acc + Number(t.monto);
+    if (t.tipo === 'Egresos') return acc - Number(t.monto);
+    return acc;
+  }, 0);
 }
 function renderPaymentBalances(data) {
   const container = $('paymentBalances');
@@ -174,13 +181,13 @@ function renderPaymentBalances(data) {
     const balances = visibleBalances.map(item => `
       <div class="balance-item">
         <div class="balance-icon">${item.icon}</div>
-        <div><b>${item.label}</b><small>Saldo de ${group.label}</small></div>
+        <div><b>${item.label}</b><small>${item.label === 'Tarjeta Dorada' ? 'Deuda aparte de' : 'Saldo de'} ${group.label}</small></div>
         <div class="balance-amount">${money(paymentBalance(group.rows, item.payments))}</div>
       </div>`).join('');
     const ingresos = sum(group.rows.filter(t => t.tipo === 'Ingresos'));
     const gastos = sum(group.rows.filter(t => t.tipo === 'Egresos'));
     const ahorros = sum(group.rows.filter(t => t.tipo === 'Ahorros'));
-    const saldoActual = group.rows.reduce((acc, t) => acc + signedAmount(t), 0);
+    const saldoActual = liquidBalance(group.rows);
     const avatar = group.label === 'Mami' ? '👩‍🦰' : '👩🏻';
     return `<section class="user-balance-group user-card-${group.label.toLowerCase()}">
       <div class="user-card-heading">
@@ -216,10 +223,13 @@ function renderMovements() {
 function renderTable(body, data, actions) {
   body.innerHTML = data.map(t => {
     const positive = t.tipo === 'Ingresos';
+    const saving = t.tipo === 'Ahorros';
+    const amountClass = saving ? 'amount-saving' : (positive ? 'amount-income' : 'amount-expense');
+    const prefix = saving ? '↗' : (positive ? '+' : '-');
     return `<tr>
       <td>${formatDate(t.fecha)}</td><td>${escapeHtml(t.usuario)}</td><td><span class="badge">${escapeHtml(t.tipo)}</span></td>
       <td>${escapeHtml(t.categoria)}</td><td>${escapeHtml(t.formaPago)}</td><td>${escapeHtml(t.descripcion || '-')}</td>
-      <td class="${positive ? 'amount-income' : 'amount-expense'}">${positive ? '+' : '-'} ${money(t.monto)}</td>
+      <td class="${amountClass}">${prefix} ${money(t.monto)}</td>
       ${actions ? `<td><button class="action-btn" onclick="editTransaction('${t.id}')" title="Editar">✏️</button><button class="action-btn" onclick="deleteTransaction('${t.id}')" title="Eliminar">🗑️</button></td>` : ''}
     </tr>`;
   }).join('') || `<tr><td colspan="${actions ? 8 : 7}" style="text-align:center;color:#73758a;padding:28px">Sin movimientos</td></tr>`;
@@ -230,7 +240,7 @@ function switchView(view) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
   $(`${view}View`).classList.add('active');
-  $('pageTitle').textContent = ({dashboard:'Resumen mensual', movimientos:'Movimientos', nuevo:'Nuevo registro', configuracion:'Configuración'})[view];
+  $('pageTitle').textContent = ({dashboard:'Resumen general', movimientos:'Movimientos', nuevo:'Nuevo registro', configuracion:'Configuración'})[view];
   if (view === 'movimientos') renderMovements();
 }
 function resetForm() {
@@ -260,7 +270,7 @@ $('transactionForm').addEventListener('submit', async (e) => {
   };
   const index = transactions.findIndex(t => t.id === id);
   if (index >= 0) transactions[index] = record; else transactions.push(record);
-  persist(); resetForm(); refreshAll(); switchView('dashboard'); toast(index >= 0 ? 'Movimiento actualizado' : 'Movimiento guardado');
+  persist(); initMonths(); resetForm(); refreshAll(); switchView('dashboard'); toast(index >= 0 ? 'Movimiento actualizado' : 'Movimiento guardado');
   await sendToSheets(record);
 });
 
@@ -301,10 +311,10 @@ function buildSummaryRows(data) {
     const ingresos = sum(rows.filter(t => t.tipo === 'Ingresos'));
     const gastos = sum(rows.filter(t => t.tipo === 'Egresos'));
     const ahorros = sum(rows.filter(t => t.tipo === 'Ahorros'));
-    return { Usuario: user, 'Total ingresos': ingresos, 'Total gastos': gastos, 'Total ahorros': ahorros, 'Dinero libre': ingresos-gastos-ahorros,
+    return { Usuario: user, 'Total ingresos': ingresos, 'Total gastos': gastos, 'Total ahorros': ahorros, 'Dinero libre (efectivo, Yape y Plin)': liquidBalance(rows),
       'Queda en efectivo': paymentBalance(rows, ['Efectivo']),
       'Queda en Yape': paymentBalance(rows, ['Yape']),
-      'Queda en Tarjeta Dorada': paymentBalance(rows, ['Tarjeta Dorada']) };
+      'Deuda Tarjeta Dorada': paymentBalance(rows, ['Tarjeta Dorada']) };
   });
 }
 function buildPaymentSummaryRows(data) {
@@ -318,7 +328,10 @@ function buildPaymentSummaryRows(data) {
     }));
   });
 }
-$('exportCurrent').addEventListener('click', () => exportExcel(filteredTransactions(), `control-gastos-${$('globalMonth').value}.xlsx`));
+$('exportCurrent').addEventListener('click', () => {
+  const period = $('globalMonth').value === 'Todos' ? 'todos-los-meses' : $('globalMonth').value;
+  exportExcel(filteredTransactions(), `control-gastos-${period}.xlsx`);
+});
 $('exportAll').addEventListener('click', () => exportExcel([...transactions], `control-gastos-completo-${today}.xlsx`));
 $('backupJson').addEventListener('click', () => {
   const blob = new Blob([JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), transactions }, null, 2)], {type:'application/json'});
@@ -329,13 +342,13 @@ $('restoreJson').addEventListener('change', async (e) => {
   try {
     const parsed = JSON.parse(await file.text()); const rows = Array.isArray(parsed) ? parsed : parsed.transactions;
     if (!Array.isArray(rows)) throw new Error();
-    transactions = rows.map(normalizeTransaction); persist(); refreshAll(); toast('Respaldo restaurado');
+    transactions = rows.map(normalizeTransaction); persist(); initMonths(); refreshAll(); toast('Respaldo restaurado');
   } catch { toast('El archivo no es un respaldo válido'); }
   e.target.value = '';
 });
 $('clearData').addEventListener('click', () => {
   if (!confirm('Esta acción eliminará todos los movimientos de este navegador. ¿Continuar?')) return;
-  transactions = []; persist(); refreshAll(); toast('Datos eliminados');
+  transactions = []; persist(); initMonths(); refreshAll(); toast('Datos eliminados');
 });
 
 $('appsScriptUrl').value = getScriptUrl();
@@ -380,9 +393,9 @@ function loadFromCloud() {
       if (response && response.ok && Array.isArray(response.records)) {
         transactions = response.records.map(normalizeTransaction);
         persist();
-        selectLatestMonthWithData();
+        initMonths();
         refreshAll();
-        $('syncStatus').textContent = `Datos compartidos actualizados: ${transactions.length} movimientos. Mes mostrado: ${$('globalMonth').value || 'sin fecha'}.`;
+        $('syncStatus').textContent = `Datos compartidos actualizados: ${transactions.length} movimientos.`;
         resolve(true);
       } else {
         $('syncStatus').textContent = 'La respuesta de Google Sheets no fue válida.';

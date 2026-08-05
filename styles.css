@@ -201,3 +201,5 @@ th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spa
   .user-mini-summary { grid-template-columns: 1fr; }
   .summary-card { min-height: 118px; }
 }
+
+.amount-saving { color: #d18a00; font-weight: 800; }

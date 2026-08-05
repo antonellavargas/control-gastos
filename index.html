@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=31" />
+  <link rel="stylesheet" href="styles.css?v=32" />
 </head>
 <body>
   <div class="app-shell">
@@ -38,15 +38,9 @@
       <header class="topbar">
         <div>
           <p class="eyebrow">CONTROL FINANCIERO</p>
-          <h2 id="pageTitle">Resumen mensual</h2>
+          <h2 id="pageTitle">Resumen general</h2>
         </div>
         <div class="topbar-actions">
-          <select id="globalMonth" aria-label="Mes"></select>
-          <select id="globalUser" aria-label="Usuario">
-            <option value="Todos">Todos los usuarios</option>
-            <option value="Mami">Mami</option>
-            <option value="Nella">Nella</option>
-          </select>
           <button class="primary-btn" id="quickAdd">+ Registrar</button>
         </div>
       </header>
@@ -56,22 +50,22 @@
           <article class="summary-card income">
             <span>Total ingresos</span>
             <strong id="totalIngresos">S/ 0.00</strong>
-            <small>Entradas del periodo</small>
+            <small>Entradas acumuladas</small>
           </article>
           <article class="summary-card expense">
             <span>Total gastos</span>
             <strong id="totalGastos">S/ 0.00</strong>
-            <small>Egresos y pagos</small>
+            <small>Egresos acumulados, incluida tarjeta</small>
           </article>
           <article class="summary-card free">
             <span>Dinero libre</span>
             <strong id="dineroLibre">S/ 0.00</strong>
-            <small>Ingresos menos gastos y ahorros</small>
+            <small>Saldo líquido en Efectivo, Yape y Plin</small>
           </article>
           <article class="summary-card saving">
             <span>Total ahorros</span>
             <strong id="totalAhorros">S/ 0.00</strong>
-            <small>Separado para ahorrar</small>
+            <small>Dinero registrado aparte como ahorro</small>
           </article>
         </div>
 
@@ -89,7 +83,7 @@
           <div class="panel-header">
             <div>
               <h3>Últimos movimientos</h3>
-              <p>Registros más recientes del filtro seleccionado</p>
+              <p>Registros más recientes de todos los periodos</p>
             </div>
             <button class="text-btn" data-go="movimientos">Ver todos →</button>
           </div>
@@ -110,9 +104,15 @@
               <p>Busca, filtra, edita o elimina registros</p>
             </div>
             <div class="inline-actions">
+              <select id="globalMonth" aria-label="Mes"></select>
+              <select id="globalUser" aria-label="Usuario">
+                <option value="Todos">Todos los usuarios</option>
+                <option value="Mami">Mami</option>
+                <option value="Nella">Nella</option>
+              </select>
               <input id="searchInput" type="search" placeholder="Buscar descripción..." />
               <select id="typeFilter"><option value="Todos">Todos los tipos</option></select>
-              <button class="secondary-btn" id="exportCurrent">Exportar mes</button>
+              <button class="secondary-btn" id="exportCurrent">Exportar filtro</button>
             </div>
           </div>
           <div class="table-wrap">
@@ -186,6 +186,6 @@
 
   <div class="toast" id="toast"></div>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-  <script src="app.js?v=31"></script>
+  <script src="app.js?v=32"></script>
 </body>
 </html>
