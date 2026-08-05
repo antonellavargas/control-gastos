@@ -19,18 +19,32 @@ const today = new Date().toISOString().slice(0, 10);
 function normalizeDateValue(value) {
   if (!value) return '';
   const raw = String(value).trim();
+  const currentYear = new Date().getFullYear();
+
+  // Corrige registros antiguos que llegaron con 2001 por un error de formato.
+  // Conserva el mes y el día, pero usa el año actual.
+  const fixLegacyYear = (year) => {
+    const numericYear = Number(year);
+    return numericYear >= 2020 && numericYear <= currentYear + 1 ? numericYear : currentYear;
+  };
 
   // Formato recomendado: yyyy-mm-dd
   const iso = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (iso) return `${iso[1]}-${String(iso[2]).padStart(2, '0')}-${String(iso[3]).padStart(2, '0')}`;
+  if (iso) {
+    const year = fixLegacyYear(iso[1]);
+    return `${year}-${String(iso[2]).padStart(2, '0')}-${String(iso[3]).padStart(2, '0')}`;
+  }
 
   // Formatos habituales de Google Sheets en Perú: dd/mm/yyyy o dd-mm-yyyy
   const local = raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
-  if (local) return `${local[3]}-${String(local[2]).padStart(2, '0')}-${String(local[1]).padStart(2, '0')}`;
+  if (local) {
+    const year = fixLegacyYear(local[3]);
+    return `${year}-${String(local[2]).padStart(2, '0')}-${String(local[1]).padStart(2, '0')}`;
+  }
 
   const parsed = new Date(raw);
   if (!Number.isNaN(parsed.getTime())) {
-    const y = parsed.getFullYear();
+    const y = fixLegacyYear(parsed.getFullYear());
     const m = String(parsed.getMonth() + 1).padStart(2, '0');
     const d = String(parsed.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
