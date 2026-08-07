@@ -1,5 +1,5 @@
 const CONFIG = {
-  tipos: ['Ingresos', 'Egresos', 'Ahorros'],
+  tipos: ['Ingresos', 'Egresos', 'Ahorros', 'Tarjeta Dorada'],
   categorias: ['Cuidado Personal', 'Gastos', 'Educación', 'Transporte', 'Comida', 'Internet Casa', 'Celular', 'Trabajo', 'Casa', 'Ropa', 'Gym', 'Deuda', 'Ahorros', '-'],
   formasPago: ['Efectivo', 'Yape', 'Plin', 'Tarjeta Dorada'],
   usuarios: ['Mami', 'Nella']
@@ -79,8 +79,11 @@ function normalizeTransaction(t) {
   if (normalized.tipo === 'Ingreso') normalized.tipo = 'Ingresos';
   if (normalized.tipo === 'Egreso') normalized.tipo = 'Egresos';
   if (normalized.tipo === 'Ahorro') normalized.tipo = 'Ahorros';
-  if (normalized.tipo === 'Tarjeta de Crédito') normalized.tipo = 'Egresos';
+  if (normalized.tipo === 'Tarjeta de Crédito') normalized.tipo = 'Tarjeta Dorada';
   if (normalized.tipo === 'Dinero en Físico') normalized.tipo = 'Ingresos';
+  // Todo registro asociado a la Tarjeta Dorada se mantiene fuera de ingresos y egresos.
+  if (normalized.formaPago === 'Tarjeta Dorada') normalized.tipo = 'Tarjeta Dorada';
+  if (normalized.tipo === 'Tarjeta Dorada') normalized.formaPago = 'Tarjeta Dorada';
   return normalized;
 }
 function loadTransactions() {
@@ -136,7 +139,7 @@ function isLiquidPayment(t) {
   return ['Efectivo', 'Yape', 'Plin'].includes(t.formaPago);
 }
 function liquidSignedAmount(t) {
-  if (!isLiquidPayment(t) || t.tipo === 'Ahorros') return 0;
+  if (!isLiquidPayment(t) || ['Ahorros', 'Tarjeta Dorada'].includes(t.tipo)) return 0;
   if (t.tipo === 'Ingresos') return Number(t.monto);
   if (t.tipo === 'Egresos') return -Number(t.monto);
   return 0;
@@ -165,22 +168,24 @@ function updateDashboard() {
 function sum(items) { return items.reduce((acc, item) => acc + Number(item.monto), 0); }
 function sortNewest(a, b) { return b.fecha.localeCompare(a.fecha) || b.createdAt - a.createdAt; }
 function paymentBalance(rows, paymentNames) {
-  const selected = rows.filter(t => paymentNames.includes(t.formaPago) && t.tipo !== 'Ahorros');
-  // Tarjeta Dorada se maneja como deuda aparte: los egresos aumentan la deuda
-  // y los ingresos registrados en la tarjeta la reducen.
+  // La Tarjeta Dorada representa consumos separados y nunca modifica el dinero líquido.
   if (paymentNames.includes('Tarjeta Dorada')) {
-    return selected.reduce((acc, t) => {
-      if (t.tipo === 'Egresos') return acc + Number(t.monto);
-      if (t.tipo === 'Ingresos') return acc - Number(t.monto);
-      return acc;
-    }, 0);
+    return rows
+      .filter(t => t.tipo === 'Tarjeta Dorada' || t.formaPago === 'Tarjeta Dorada')
+      .reduce((acc, t) => acc + Number(t.monto), 0);
   }
+
+  const selected = rows.filter(t =>
+    paymentNames.includes(t.formaPago) &&
+    !['Ahorros', 'Tarjeta Dorada'].includes(t.tipo)
+  );
   return selected.reduce((acc, t) => {
     if (t.tipo === 'Ingresos') return acc + Number(t.monto);
     if (t.tipo === 'Egresos') return acc - Number(t.monto);
     return acc;
   }, 0);
 }
+
 function renderPaymentBalances(data) {
   const container = $('paymentBalances');
   const visibleBalances = [
@@ -239,9 +244,9 @@ function renderRecentCards(data) {
   const target = $('recentCards');
   if (!target) return;
   target.innerHTML = data.length ? data.map(t => {
-    const cls = t.tipo === 'Ingresos' ? 'income' : t.tipo === 'Ahorros' ? 'saving' : t.formaPago === 'Tarjeta Dorada' ? 'card-debt' : 'expense';
-    const prefix = t.tipo === 'Ingresos' ? '+' : t.tipo === 'Ahorros' ? '↗' : '-';
-    const icon = t.tipo === 'Ingresos' ? '↗' : t.tipo === 'Ahorros' ? '◇' : t.formaPago === 'Tarjeta Dorada' ? '💳' : '↘';
+    const cls = t.tipo === 'Ingresos' ? 'income' : t.tipo === 'Ahorros' ? 'saving' : t.tipo === 'Tarjeta Dorada' ? 'card-debt' : 'expense';
+    const prefix = t.tipo === 'Ingresos' ? '+' : t.tipo === 'Ahorros' ? '↗' : t.tipo === 'Tarjeta Dorada' ? '💳' : '-';
+    const icon = t.tipo === 'Ingresos' ? '↗' : t.tipo === 'Ahorros' ? '◇' : t.tipo === 'Tarjeta Dorada' ? '💳' : '↘';
     return `<article class="movement-card ${cls}"><div class="movement-card-icon">${icon}</div><div class="movement-card-main"><b>${escapeHtml(t.descripcion || t.categoria || 'Movimiento')}</b><span>${escapeHtml(t.usuario)} · ${escapeHtml(t.formaPago)} · ${formatDate(t.fecha)}</span></div><strong>${prefix} ${money(t.monto)}</strong></article>`;
   }).join('') : '<div class="empty-state compact">Todavía no hay movimientos.</div>';
 }
@@ -266,8 +271,9 @@ function renderTable(body, data, actions) {
   body.innerHTML = data.map(t => {
     const positive = t.tipo === 'Ingresos';
     const saving = t.tipo === 'Ahorros';
-    const amountClass = saving ? 'amount-saving' : (positive ? 'amount-income' : 'amount-expense');
-    const prefix = saving ? '↗' : (positive ? '+' : '-');
+    const card = t.tipo === 'Tarjeta Dorada';
+    const amountClass = card ? 'amount-saving' : saving ? 'amount-saving' : (positive ? 'amount-income' : 'amount-expense');
+    const prefix = card ? '💳' : saving ? '↗' : (positive ? '+' : '-');
     return `<tr>
       <td>${formatDate(t.fecha)}</td><td>${escapeHtml(t.usuario)}</td><td><span class="badge">${escapeHtml(t.tipo)}</span></td>
       <td>${escapeHtml(t.categoria)}</td><td>${escapeHtml(t.formaPago)}</td><td>${escapeHtml(t.descripcion || '-')}</td>
@@ -287,11 +293,13 @@ function switchView(view) {
 }
 function resetForm() {
   $('transactionForm').reset(); $('editId').value = ''; $('fecha').value = today; $('formTitle').textContent = 'Registrar movimiento';
+  syncPaymentWithType();
 }
 function editTransaction(id) {
   const t = transactions.find(x => x.id === id); if (!t) return;
   $('editId').value = t.id; $('fecha').value = t.fecha; $('usuario').value = t.usuario; $('tipo').value = t.tipo;
   $('categoria').value = t.categoria; $('formaPago').value = t.formaPago; $('monto').value = t.monto; $('descripcion').value = t.descripcion || ''; $('nota').value = t.nota || '';
+  syncPaymentWithType();
   $('formTitle').textContent = 'Editar movimiento'; switchView('nuevo');
 }
 async function deleteTransaction(id) {
@@ -305,9 +313,10 @@ $('transactionForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const id = $('editId').value || crypto.randomUUID();
   const old = transactions.find(t => t.id === id);
+  const selectedType = $('tipo').value;
   const record = {
-    id, fecha: $('fecha').value, usuario: $('usuario').value, tipo: $('tipo').value,
-    categoria: $('categoria').value, formaPago: $('formaPago').value, monto: Number($('monto').value),
+    id, fecha: $('fecha').value, usuario: $('usuario').value, tipo: selectedType,
+    categoria: $('categoria').value, formaPago: selectedType === 'Tarjeta Dorada' ? 'Tarjeta Dorada' : $('formaPago').value, monto: Number($('monto').value),
     descripcion: $('descripcion').value.trim(), nota: $('nota').value.trim(), createdAt: old?.createdAt || Date.now(), updatedAt: Date.now()
   };
   const index = transactions.findIndex(t => t.id === id);
@@ -315,6 +324,14 @@ $('transactionForm').addEventListener('submit', async (e) => {
   persist(); initMonths(); resetForm(); refreshAll(); switchView('dashboard'); toast(index >= 0 ? 'Movimiento actualizado' : 'Movimiento guardado');
   await sendToSheets(record);
 });
+
+function syncPaymentWithType() {
+  const isCard = $('tipo').value === 'Tarjeta Dorada';
+  if (isCard) $('formaPago').value = 'Tarjeta Dorada';
+  $('formaPago').disabled = isCard;
+  $('formaPago').title = isCard ? 'La Tarjeta Dorada se registra automáticamente como un movimiento aparte.' : '';
+}
+$('tipo').addEventListener('change', syncPaymentWithType);
 
 document.querySelectorAll('.nav-btn, .mobile-nav-btn').forEach(btn => btn.addEventListener('click', () => switchView(btn.dataset.view)));
 document.querySelectorAll('[data-go]').forEach(btn => btn.addEventListener('click', () => switchView(btn.dataset.go)));
