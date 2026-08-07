@@ -518,7 +518,9 @@ $('sidebarToggle').addEventListener('click', () => {
 });
 
 fillSelect('usuario', CONFIG.usuarios);
-fillSelect('tipo', CONFIG.tipos);
+if (!$('tipo').querySelector('option[value="Tarjeta Dorada"]')) {
+  fillSelect('tipo', CONFIG.tipos);
+}
 fillSelect('categoria', CONFIG.categorias);
 fillSelect('formaPago', CONFIG.formasPago);
 fillSelect('typeFilter', CONFIG.tipos, {label:'Todos los tipos', value:'Todos'});

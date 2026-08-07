@@ -146,7 +146,14 @@
             <input type="hidden" id="editId" />
             <label>Fecha<input id="fecha" type="date" required /></label>
             <label>Usuario<select id="usuario" required></select></label>
-            <label>Tipo<select id="tipo" required></select></label>
+            <label>Tipo
+              <select id="tipo" required>
+                <option value="Ingresos">Ingresos</option>
+                <option value="Egresos">Egresos</option>
+                <option value="Ahorros">Ahorros</option>
+                <option value="Tarjeta Dorada">Tarjeta Dorada</option>
+              </select>
+            </label>
             <label>Categoría<select id="categoria" required></select></label>
             <label>Forma de pago<select id="formaPago" required></select></label>
             <label>Monto (S/)<input id="monto" type="number" min="0.01" step="0.01" placeholder="0.00" required /></label>
@@ -203,6 +210,6 @@
 
   <div class="toast" id="toast"></div>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-  <script src="app.js?v=40"></script>
+  <script src="app.js?v=42"></script>
 </body>
 </html>
